@@ -4,9 +4,7 @@ import ctypes
 import time
 
 
-# ---------- Windows Ctrl+V paste ----------
 def press_ctrl_v():
-    # Virtual key codes
     VK_CONTROL = 0x11
     VK_V = 0x56
     KEYEVENTF_KEYUP = 0x0002
@@ -20,52 +18,64 @@ def press_ctrl_v():
 class ClipboardApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Phrases")
-        self.root.geometry("210x360")
+        self.root.overrideredirect(True)   # removes white Windows title bar
+        self.root.geometry("210x360+200+200")
         self.root.configure(bg="#252525")
         self.root.attributes("-topmost", True)
 
+        self.pinned = False
         self.phrases = []
 
         self.build_ui()
 
     def build_ui(self):
-        # Header
-        header = tk.Frame(self.root, bg="#0078d7", height=40)
-        header.pack(fill="x")
+        self.header = tk.Frame(self.root, bg="#0078d7", height=42)
+        self.header.pack(fill="x")
 
-        title = tk.Label(
-            header,
+        self.title = tk.Label(
+            self.header,
             text="Clipboard",
             fg="white",
             bg="#0078d7",
             font=("Segoe UI", 12)
         )
-        title.pack(side="left", padx=10)
+        self.title.pack(side="left", padx=8)
 
-        close_btn = tk.Button(
-            header,
+        self.close_btn = tk.Button(
+            self.header,
             text="×",
             fg="white",
             bg="#0078d7",
+            activebackground="#005fa3",
+            activeforeground="white",
             bd=0,
             font=("Segoe UI", 16),
             command=self.root.destroy
         )
-        close_btn.pack(side="right", padx=5)
+        self.close_btn.pack(side="right", padx=4)
 
-        # Make window draggable
-        header.bind("<Button-1>", self.start_move)
-        header.bind("<B1-Motion>", self.do_move)
-        title.bind("<Button-1>", self.start_move)
-        title.bind("<B1-Motion>", self.do_move)
+        self.pin_btn = tk.Button(
+            self.header,
+            text="📌",
+            fg="white",
+            bg="#0078d7",
+            activebackground="#005fa3",
+            activeforeground="white",
+            bd=0,
+            font=("Segoe UI", 11),
+            command=self.toggle_pin
+        )
+        self.pin_btn.pack(side="right")
 
-        # Phrase buttons area
+        # draggable header
+        for widget in (self.header, self.title):
+            widget.bind("<Button-1>", self.start_move)
+            widget.bind("<B1-Motion>", self.do_move)
+
         self.button_frame = tk.Frame(self.root, bg="#252525")
         self.button_frame.pack(fill="both", expand=True)
 
-        # New phrase button
-        new_btn = tk.Button(
+        self.new_btn = tk.Button(
             self.root,
             text="New phrase...",
             anchor="w",
@@ -77,21 +87,25 @@ class ClipboardApp:
             font=("Segoe UI", 11),
             command=self.open_new_phrase_window
         )
-        new_btn.pack(fill="x", padx=5, pady=5)
+        self.new_btn.pack(fill="x", padx=5, pady=5)
+
+    def toggle_pin(self):
+        self.pinned = not self.pinned
+        self.pin_btn.configure(bg="#00a86b" if self.pinned else "#0078d7")
 
     def start_move(self, event):
-        self.x = event.x
-        self.y = event.y
+        self.drag_x = event.x
+        self.drag_y = event.y
 
     def do_move(self, event):
-        x = self.root.winfo_pointerx() - self.x
-        y = self.root.winfo_pointery() - self.y
+        x = self.root.winfo_pointerx() - self.drag_x
+        y = self.root.winfo_pointery() - self.drag_y
         self.root.geometry(f"+{x}+{y}")
 
     def open_new_phrase_window(self):
         win = tk.Toplevel(self.root)
         win.title("New Phrase")
-        win.geometry("520x420")
+        win.geometry("520x460")
         win.configure(bg="#252525")
         win.attributes("-topmost", True)
 
@@ -126,9 +140,13 @@ class ClipboardApp:
             bg="#1e1e1e",
             fg="white",
             insertbackground="white",
-            wrap="word"
+            wrap="word",
+            height=12
         )
-        content_text.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        content_text.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+
+        button_area = tk.Frame(win, bg="#252525")
+        button_area.pack(fill="x", padx=15, pady=(0, 15))
 
         def save_phrase():
             title = title_entry.get().strip()
@@ -138,28 +156,39 @@ class ClipboardApp:
                 messagebox.showwarning("Missing title", "Please enter a title.")
                 return
 
-            if not content:
+            if not content.strip():
                 messagebox.showwarning("Missing content", "Please enter phrase content.")
                 return
 
-            self.phrases.append({
-                "title": title,
-                "content": content
-            })
-
+            self.phrases.append({"title": title, "content": content})
             self.add_phrase_button(title, content)
             win.destroy()
 
         save_btn = tk.Button(
-            win,
+            button_area,
             text="Save Phrase",
             font=("Segoe UI", 11),
             bg="#0078d7",
             fg="white",
+            activebackground="#005fa3",
+            activeforeground="white",
             bd=0,
             command=save_phrase
         )
-        save_btn.pack(fill="x", padx=15, pady=(0, 15))
+        save_btn.pack(side="right", ipadx=18, ipady=6)
+
+        cancel_btn = tk.Button(
+            button_area,
+            text="Cancel",
+            font=("Segoe UI", 11),
+            bg="#444444",
+            fg="white",
+            activebackground="#555555",
+            activeforeground="white",
+            bd=0,
+            command=win.destroy
+        )
+        cancel_btn.pack(side="right", padx=(0, 8), ipadx=18, ipady=6)
 
     def add_phrase_button(self, title, content):
         btn = tk.Button(
@@ -177,16 +206,18 @@ class ClipboardApp:
         btn.pack(fill="x", padx=5, pady=2)
 
     def paste_phrase(self, content):
-        # Put phrase into clipboard
         self.root.clipboard_clear()
         self.root.clipboard_append(content)
         self.root.update()
 
-        # Small delay, then paste into active app
-        self.root.withdraw()
+        if not self.pinned:
+            self.root.withdraw()
+
         time.sleep(0.15)
         press_ctrl_v()
-        self.root.deiconify()
+
+        if self.pinned:
+            self.root.deiconify()
 
 
 if __name__ == "__main__":
